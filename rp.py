@@ -69,6 +69,7 @@ section_64 = Struct("section_64",
                     ULInt32("reserved1"),
                     ULInt32("reserved2"),
                     ULInt32("reserved3"),
+                    Pointer(lambda ctx: ctx.offset, OnDemand(Field("data", lambda ctx: ctx.size)))
                     )
 
 segment_command_64 = Struct("segment_command_64",
@@ -136,6 +137,30 @@ universal_file = Struct("universal_file",
                               ))
 
 
+def disassemble_text_section(t):
+    print "Disassembly for section %s" % t.sectname
+    print [hex(ord(byte)) for byte in list(t.data.value)]
+
+
+def disassemble_mh_object(mho):
+    """Show disassembly info for a 64-bit MH_OBJECT'S main text section"""
+    print "CPUTYPE: %s" % mho.mach_header.cputype
+    segments = [segment.command for segment in mho.load_command if segment.cmd == 'LC_SEGMENT_64']
+
+    text_sections = []
+    for segment in segments:
+        print "Disassembling %d sections in segment" % segment.nsects
+        sections = [section for section in segment.section_64]
+        for section in sections:
+            if section.sectname != '__text':
+                print "Skipping section %s" % section.sectname
+                continue
+
+            text_sections.append(section)
+
+    for section in text_sections:
+        disassemble_text_section(section)
+
 def main():
     #test_file = "/System/Library/Frameworks/OpenGL.framework/Versions/A/OpenGL"
     print "Current working directory is %s" % os.getcwd()
@@ -147,12 +172,13 @@ def main():
     f = open(test_file, "rb")
     #obj = universal_file.parse_stream(f) # For executables and dylibs
     obj = mach_image.parse_stream(f)
-    f.close()
 
     #print "%s is a Mach-O Universal Binary with %d architectures" % (os.path.basename(test_file), obj.fat_header.nfat_arch)
 
-    print obj
+    #print obj
+    disassemble_mh_object(obj)
 
+    f.close()
 
 if __name__ == "__main__":
     main()
