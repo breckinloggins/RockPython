@@ -41,6 +41,7 @@ mach_header = Struct("mach_header",
                      cpu_type_t("cputype"),
                      cpu_subtype_t("cpusubtype"),
                      Enum(ULInt32("filetype"),
+                          MH_OBJECT=0x1,
                           MH_DYLIB=0x6,
                           ),
                      ULInt32("ncmds"),
@@ -55,17 +56,32 @@ mach_header = Struct("mach_header",
 uuid_command = Struct("uuid_command",
                       Array(16, ULInt8("uuid")))
 
+section_64 = Struct("section_64",
+                    String("sectname", length=16, padchar=six.b("\x00")),
+                    String("segname", length=16, padchar=six.b("\x00")),
+                    ULInt64("addr"),
+                    ULInt64("size"),
+                    ULInt32("offset"),
+                    ULInt32("align"),
+                    ULInt32("reloff"),
+                    ULInt32("nreloc"),
+                    ULInt32("flags"),
+                    ULInt32("reserved1"),
+                    ULInt32("reserved2"),
+                    ULInt32("reserved3"),
+                    )
+
 segment_command_64 = Struct("segment_command_64",
                             String("segname", length=16, padchar=six.b("\x00")),
                             ULInt64("vmaddr"),
                             ULInt64("vmsize"),
                             ULInt64("fileoff"),
                             ULInt64("filesize"),
-                            ULInt64("maxprot"),  #?
-                            ULInt64("initprot"), #?
+                            ULInt32("maxprot"),  #?
+                            ULInt32("initprot"), #?
                             ULInt32("nsects"),
                             ULInt32("flags"),
-                            # sections
+                            Array(lambda ctx: ctx.nsects, section_64)
                             )
 
 load_command = Struct("load_command",
@@ -91,7 +107,7 @@ load_command = Struct("load_command",
                       ULInt32("cmdsize"),
                       Switch("command", lambda ctx: ctx.cmd, {
                           "LC_UUID": uuid_command,
-                          #"LC_SEGMENT_64": segment_command_64,
+                          "LC_SEGMENT_64": segment_command_64,
 
                       }, default=OnDemand(Field("data", lambda ctx: ctx.cmdsize-8))),
                       )
@@ -121,16 +137,19 @@ universal_file = Struct("universal_file",
 
 
 def main():
-    test_file = "/System/Library/Frameworks/OpenGL.framework/Versions/A/OpenGL"
+    #test_file = "/System/Library/Frameworks/OpenGL.framework/Versions/A/OpenGL"
+    print "Current working directory is %s" % os.getcwd()
+    test_file = "test/minimal.o"
     if not os.path.exists(test_file):
         print "Test file not found"
         exit(1)
 
     f = open(test_file, "rb")
-    obj = universal_file.parse_stream(f)
+    #obj = universal_file.parse_stream(f) # For executables and dylibs
+    obj = mach_image.parse_stream(f)
     f.close()
 
-    print "%s is a Mach-O Universal Binary with %d architectures" % (os.path.basename(test_file), obj.fat_header.nfat_arch)
+    #print "%s is a Mach-O Universal Binary with %d architectures" % (os.path.basename(test_file), obj.fat_header.nfat_arch)
 
     print obj
 
